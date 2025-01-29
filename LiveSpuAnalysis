@@ -72,26 +72,41 @@ for index, row in spu_stock.iterrows():
         deviations = abs(color_size_stock['erp库存'] - avg_stock) / avg_stock
         is_out_of_stock = any(deviations > deviation_threshold)
 
-        size_info = ', '.join([f"{size}: {inventory}" for size, inventory in zip(color_size_stock['尺码'], color_size_stock['erp库存'])])
-        status = "偏码" if is_out_of_stock else "匀码"
-        good_selling_info.append(f"{color};{status}[{size_info}]")
 
-    for color in non_good_selling_colors:
-        color_size_stock = spu_color_size_stock[(spu_color_size_stock['款号'] == spu) & (spu_color_size_stock['颜色'] == color)]
-        color_total_stock = color_size_stock['erp库存'].sum()
-        size_count = len(color_size_stock)
-        avg_stock = color_total_stock / size_count
+        def calculate_size_status(color_size_stock, deviation_threshold):
+            # 计算每个尺码库存与平均值的偏离程度
+            color_total_stock = color_size_stock['erp库存'].sum()
+            size_count = len(color_size_stock)
+            avg_stock = color_total_stock / size_count
+            deviations = abs(color_size_stock['erp库存'] - avg_stock) / avg_stock
+            is_out_of_stock = any(deviations > deviation_threshold)
 
-        # 计算每个尺码库存与平均值的偏离程度
-        deviations = abs(color_size_stock['erp库存'] - avg_stock) / avg_stock
-        is_out_of_stock = any(deviations > deviation_threshold)
+            size_info = ', '.join([f"{size}: {inventory}" for size, inventory in
+                                   zip(color_size_stock['尺码'], color_size_stock['erp库存'])])
+            status = "偏码" if is_out_of_stock else "匀码"
+            return status, size_info
 
-        size_info = ', '.join([f"{size}: {inventory}" for size, inventory in zip(color_size_stock['尺码'], color_size_stock['erp库存'])])
-        status = "偏码" if is_out_of_stock else "匀码"
-        non_good_selling_info.append(f"{color};{status}[{size_info}]")
 
-    good_selling_str = '; '.join(good_selling_info)
-    non_good_selling_str = '; '.join(non_good_selling_info)
+        # 处理货多色
+        good_selling_info = []
+        for color in good_selling_colors:
+            color_size_stock = spu_color_size_stock[
+                (spu_color_size_stock['款号'] == spu) & (spu_color_size_stock['颜色'] == color)]
+            status, size_info = calculate_size_status(color_size_stock, deviation_threshold)
+            good_selling_info.append(f"{color};{status}[{size_info}]")
+
+        # 处理货少色
+        non_good_selling_info = []
+        for color in non_good_selling_colors:
+            color_size_stock = spu_color_size_stock[
+                (spu_color_size_stock['款号'] == spu) & (spu_color_size_stock['颜色'] == color)]
+            status, size_info = calculate_size_status(color_size_stock, deviation_threshold)
+            non_good_selling_info.append(f"{color};{status}[{size_info}]")
+
+        good_selling_str = '; '.join(good_selling_info)
+        non_good_selling_str = '; '.join(non_good_selling_info)
+
+        good_selling_color_status = f"货多色: {good_selling_str}; 货少色: {non_good_selling_str}"
 
     good_selling_color_status = f"货多色: {good_selling_str}; 货少色: {non_good_selling_str}"
 
@@ -148,7 +163,7 @@ for interval, results in interval_results.items():
         good_selling_str = color_info.split('; ')[0].replace('货多色: ', '')
         non_good_selling_str = color_info.split('; ')[1].replace('货少色: ', '')
 
-        # 处理好卖色信息
+        # 处理货多色信息
         if good_selling_str:
             good_selling_items = good_selling_str.split('; ')
             for item in good_selling_items:
@@ -161,7 +176,7 @@ for interval, results in interval_results.items():
                     cleaned_data.append([spu, stock, spu_stock_desc, '货多色', color, status, size_name, int(inventory),
                                          overall_status])
 
-        # 处理不好卖色信息
+        # 处理货少色信息
         if non_good_selling_str:
             non_good_selling_items = non_good_selling_str.split('; ')
             for item in non_good_selling_items:
@@ -171,9 +186,8 @@ for interval, results in interval_results.items():
                 sizes = size_info_str.split(', ')
                 for size in sizes:
                     size_name, inventory = size.split(': ')
-                    cleaned_data.append(
-                        [spu, stock, spu_stock_desc, '货少色', color, status, size_name, int(inventory),
-                         overall_status])
+                    cleaned_data.append([spu, stock, spu_stock_desc, '货少色', color, status, size_name, int(inventory),
+                                         overall_status])
 
 # 创建一维表的 DataFrame
 cleaned_df = pd.DataFrame(cleaned_data,
@@ -181,5 +195,5 @@ cleaned_df = pd.DataFrame(cleaned_data,
                                    '整体断码状态'])
 
 # 保存一维表数据
-cleaned_save_path = fr'C:\Users\{username}\Documents\analysis_result_cleaned-4.xlsx'
+cleaned_save_path = fr'C:\Users\{username}\Documents\analysis_result_cleaned7.xlsx'
 cleaned_df.to_excel(cleaned_save_path, index=False)
